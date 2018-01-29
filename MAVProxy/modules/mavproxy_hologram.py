@@ -10,6 +10,7 @@ import os
 import os.path
 import sys
 from pymavlink import mavutil
+from pymavlink.dialects.v10 import common as mavlink
 import errno
 import time
 
@@ -22,6 +23,13 @@ from Hologram.HologramCloud import HologramCloud
 from Exceptions.HologramError import PPPError
 from scripts.hologram_util import handle_polling
 
+# For Hologram Cloud REST API
+from urllib2 import Request, urlopen, URLError
+import json
+import textwrap
+import base64
+
+MAX_SMS_LENGTH = 150
 
 class HologramModule(mp_module.MPModule):
     def __init__(self, mpstate):
@@ -38,18 +46,22 @@ class HologramModule(mp_module.MPModule):
         self.hologram_settings = mp_settings.MPSettings(
             [ ('verbose', bool, False),
           ])
-        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY'])
+        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent'])
 
         # Set hologram object and credentials to nothing to indicated not initialized
         self.hologram = None
         self.hologram_credentials = None
+        self.apikey = None
+        self.device_id = None
 
         self.hologram_network_type = 'cellular'
         self.sms_subscribed = False
 
+        self.message_to_send = None
+
     def usage(self):
         '''show help on command line options'''
-        return "Usage: hologram <status|start>"
+        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY>"
 
     def cmd_hologram(self, args):
         '''control behaviour of the module'''
@@ -57,16 +69,19 @@ class HologramModule(mp_module.MPModule):
             print(self.usage())
         elif args[0] == "status":
             print(self.status())
-        elif args[0] == "start":
-            print(self.start(args[1:]))
+        elif args[0] == "start" and len(args) == 3:
+            print(self.start(args[1], args[2]))
+        elif args[0] == "sendsms" and len(args) == 2:
+            print(self.send_sms(args[1]))
+        elif args[0] == "sendcurrent" and len(args) == 1:
+            print(self.sendcurrent())
         else:
             print(self.usage())
 
     def status(self):
         '''returns information about module'''
         if self.hologram is None:
-            # Create a non-authenticated hologram object temporarily
-            self.hologram = HologramCloud(dict(), network=self.hologram_network_type)
+            return "The 'hologram start' method must be called first before checking status"
 
         # Find basic information about connection and SIM 
         signal_strength = self.hologram.network.signal_strength
@@ -78,16 +93,69 @@ class HologramModule(mp_module.MPModule):
         if recv is not None:
             print 'Received message: ' + str(recv)
 
-    def start(self, devicekey):
+    def start(self, device_id, apikey):
         # Initialize credentials and hologram object
         if self.hologram_credentials is None:
             #self.hologram_credentials = {'devicekey': devicekey}
             self.hologram_credentials = dict()
             self.hologram = HologramCloud(self.hologram_credentials, network=self.hologram_network_type)
+
             print("HologramCloud connection initialized w/ credentials")
+        
+        self.apikey = apikey
+        self.device_id = device_id
+
+        print("API Key set to: " + str(apikey) + ", device id set to: " + str(device_id))
 
         return "Start command run: Hologram credentials = " + str(self.hologram_credentials) + " Hologram Object: " + str(self.hologram)
-    
+
+    def send_sms(self, message_body):
+        if not message_body:
+            print("No message body given - ignoring command to send")
+            return
+        elif not self.apikey:
+            print("Cannot send message without hologram start being run")
+            return
+        
+        data = {}
+        data['deviceid'] = str(self.device_id)
+        data['body'] = str(message_body)
+
+
+        json_payload = json.dumps(data)
+
+        print json_payload
+
+        headers = {
+            'Content-Type': 'application/json'
+        }
+
+        request = Request('https://dashboard.hologram.io/api/1/sms/incoming?apikey=' + self.apikey, data=json_payload, headers=headers)
+
+        print("Sending message " + str(json_payload))
+
+        try:
+            #return None
+            response_body = urlopen(request).read()
+            return response_body
+        except URLError as uerror:
+            print("Received URL Error: " + str(uerror))
+
+    def mavlink_packet_to_base64(self, packet):
+        if not packet:
+            print "No packet given to encode, ignoring command"
+            return
+        return base64.b64encode(packet.get_msgbuf())
+
+    def sendcurrent(self):
+
+
+        msg = mavlink.MAVLink_command_long_message(self.target_system, self.target_component, mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0).pack(self.master.mav)
+        #print "Msg type: " + str(type(msg))
+        #print "Msg : " + str(msg.get_msgbuf())
+        return self.send_sms(base64.b64encode(msg))
+        #return self.send_sms(self.mavlink_packet_to_base64(self.message_to_send))
+        #return self.send_sms(self.mavlink_packet_to_base64(msg))
 
     def idle_task(self):
         '''called rapidly by mavproxy'''
@@ -95,21 +163,50 @@ class HologramModule(mp_module.MPModule):
         now = time.time()
         if now-self.last_checked > self.pop_sms_interval:
             self.last_checked = now
+            #msg = mavlink.MAVLink_command_long_message(self.target_system, self.target_component, mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0)#.pack(self.master.mav)
+            #print "Msg : " + str(msg)
+            #self.master.mav.send(msg)
+
+
             if self.hologram and self.hologram_credentials:
                 print("Checking for sms...")
                 msg_object = self.hologram.popReceivedSMS()
-                print(msg_object)
-                print("SMS Received: " + msg_object.message)
+                if msg_object is not None:
+                    print(msg_object)
+                    print("SMS Received: " + msg_object.message)
+                    decoded = base64.b64decode(msg_object.message) 
+                    print("Base64 decoded: " + decoded)
+                    packet = self.master.mav.parse_char(decoded)
+                    print("Packet received:" + str(packet))
+
+                    # If we really received a MAVLink packet, forward it to the aircraft
+                    if packet:
+                        self.master.mav.send(packet)
+
             else:
-                print("No hologram object or no credentials")
+                pass
+                #print("No hologram object or no credentials")
+            '''
+            m = self.message_to_send
+            print("\n------------")
+            print(m)
+            print(type(m))
+            print(type(m.get_msgbuf()))
+            print("Message buf: " + m.get_msgbuf())
+            print("B64Encode: " + base64.b64encode(m.get_msgbuf()))
+            print("B64Encode length: " + str(len(base64.b64encode(m.get_msgbuf()))))
+            print("B64Decode: " + base64.b64decode(base64.b64encode(m.get_msgbuf())))
+            print("DECODED: " + str(self.master.mav.parse_char(base64.b64decode(base64.b64encode(m.get_msgbuf())))))
+            print("------------\n")
+            '''
 
     def mavlink_packet(self, m):
         '''handle mavlink packets'''
-        if m.get_type() == 'GLOBAL_POSITION_INT':
-            if self.settings.target_system == 0 or self.settings.target_system == m.get_srcSystem():
-                self.packets_mytarget += 1
-            else:
-                self.packets_othertarget += 1
+        if m.get_type() == 'ATTITUDE':
+            self.message_to_send = m
+            #print type(m)
+
+
 
 def init(mpstate):
     '''initialise module'''
