@@ -198,6 +198,10 @@ class HologramModule(mp_module.MPModule):
                     print("SMS Received: " + msg_object.message)
                     decoded = base64.b64decode(msg_object.message) 
                     #print("Base64 decoded: " + decoded)
+
+                    # Clear the buffer before each parse
+                    self.master.mav.buf = bytearray()
+                    self.master.mav.buf_index = 0
                     packet = self.master.mav.parse_char(decoded)
                     print("Packet received:" + str(packet))
 
