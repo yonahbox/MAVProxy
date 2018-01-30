@@ -168,6 +168,9 @@ class HologramModule(mp_module.MPModule):
             #self.master.mav.send(msg)
 
 
+            '''
+            VERY IMPORTANT TODO: DEQUEUE PACKETS UNTIL THE QUEUE IS EMPTY!
+            '''
             if self.hologram and self.hologram_credentials:
                 print("Checking for sms...")
                 msg_object = self.hologram.popReceivedSMS()
@@ -181,6 +184,7 @@ class HologramModule(mp_module.MPModule):
 
                     # If we really received a MAVLink packet, forward it to the aircraft
                     if packet:
+                        print("Forwarding packet to the aircraft")
                         self.master.mav.send(packet)
 
             else:
@@ -204,7 +208,9 @@ class HologramModule(mp_module.MPModule):
         '''handle mavlink packets'''
         if m.get_type() == 'ATTITUDE':
             self.message_to_send = m
-            #print type(m)
+    
+    def handle_slave_command(self, m):
+        print(m)
 
 
 
