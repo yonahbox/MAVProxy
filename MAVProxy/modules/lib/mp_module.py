@@ -37,6 +37,9 @@ class MPModule(object):
 
     def mavlink_packet(self, packet):
         pass
+    
+    def handle_slave_command(self, packet):
+        pass
 
     #
     # Methods for subclass use
