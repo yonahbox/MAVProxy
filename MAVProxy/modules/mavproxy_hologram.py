@@ -104,10 +104,13 @@ class HologramModule(mp_module.MPModule):
         # Initialize credentials and hologram object
         if self.hologram_credentials is None:
             #self.hologram_credentials = {'devicekey': devicekey}
-            self.hologram_credentials = dict()
-            self.hologram = HologramCloud(self.hologram_credentials, network=self.hologram_network_type)
-
-            print("HologramCloud connection initialized w/ credentials")
+            try:
+                self.hologram_credentials = dict()
+                self.hologram = HologramCloud(self.hologram_credentials, network=self.hologram_network_type)
+                print("HologramCloud connection initialized w/ credentials")
+            except Exception as e:
+                print("Error with starting hologram, error: " + str(e))
+                print("Hologram module will start in API-only mode")
         
         self.apikey = apikey
         self.device_id = device_id
