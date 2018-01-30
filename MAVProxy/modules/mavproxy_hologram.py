@@ -46,7 +46,7 @@ class HologramModule(mp_module.MPModule):
         self.hologram_settings = mp_settings.MPSettings(
             [ ('verbose', bool, False),
           ])
-        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent'])
+        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent', 'enablesms', 'disablesms'])
 
         # Set hologram object and credentials to nothing to indicated not initialized
         self.hologram = None
@@ -58,10 +58,11 @@ class HologramModule(mp_module.MPModule):
         self.sms_subscribed = False
 
         self.message_to_send = None
+        self.enable_sms = False
 
     def usage(self):
         '''show help on command line options'''
-        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY>"
+        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY|enablesms|disablesms>"
 
     def cmd_hologram(self, args):
         '''control behaviour of the module'''
@@ -75,6 +76,12 @@ class HologramModule(mp_module.MPModule):
             print(self.send_sms(args[1]))
         elif args[0] == "sendcurrent" and len(args) == 1:
             print(self.sendcurrent())
+        elif args[0] == "enablesms":
+            print("Enabling command forwarding through SMS")
+            self.enable_sms = True
+        elif args[0] == "disablesms":
+            print("Disabling command forwarding through SMS")
+            self.enable_sms = False
         else:
             print(self.usage())
 
@@ -156,6 +163,10 @@ class HologramModule(mp_module.MPModule):
         #return self.send_sms(base64.b64encode(msg))
         return self.send_sms(self.mavlink_packet_to_base64(self.message_to_send))
         #return self.send_sms(self.mavlink_packet_to_base64(msg))
+    
+    def send_mavlink_packet_through_sms(self, packet):
+        return self.send_sms(self.mavlink_packet_to_base64(packet))
+
 
     def idle_task(self):
         '''called rapidly by mavproxy'''
@@ -168,11 +179,9 @@ class HologramModule(mp_module.MPModule):
             #self.master.mav.send(msg)
 
 
-            '''
-            VERY IMPORTANT TODO: DEQUEUE PACKETS UNTIL THE QUEUE IS EMPTY!
-            '''
+
             if self.hologram and self.hologram_credentials:
-                print("Checking for sms...")
+                #print("Checking for sms...")
                 msg_object = self.hologram.popReceivedSMS()
                 while msg_object is not None:
                     print(msg_object)
@@ -202,9 +211,16 @@ class HologramModule(mp_module.MPModule):
         #    self.message_to_send = m
     
     def handle_slave_command(self, m):
-        if m.get_type() == 'SET_MODE':
-            print "Setting message to send = " + str(m)
-            self.message_to_send = m
+        # Whitelist certain packets
+        if m.get_type() in ['SET_MODE', 'COMMAND_LONG']:
+            if self.enable_sms:
+                print "Setting message to send = " + str(m)
+                self.send_mavlink_packet_through_sms(m)
+            else:
+                print "Received command but sms command forwarding is disabled: use hologram enablesms to start"
+        # Ignore blacklisted packets but print those we might have missed
+        elif m.get_type() not in ['HEARTBEAT', 'REQUEST_DATA_STREAM']:
+            print "Received command: " + str(m) + " - but these are not whitelisted to forward"
 
 
 

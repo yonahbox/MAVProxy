@@ -593,11 +593,14 @@ def process_mavlink(slave):
                 if fnmatch.fnmatch(m.get_type().upper(), mpstate.status.watch.upper()):
                     mpstate.console.writeln('> '+ str(m))
             mpstate.master().write(m.get_msgbuf())
-            # Also forward these command packets to modules
-            for (mod, pm) in mpstate.modules:
-                if not hasattr(mod, 'handle_slave_command'):
-                    continue
-                mod.handle_slave_command(m)
+
+
+    for m in msgs:
+        # Also forward these slave command packets to modules - independant of mavfwd being on or off
+        for (mod, pm) in mpstate.modules:
+            if not hasattr(mod, 'handle_slave_command'):
+                continue
+            mod.handle_slave_command(m)
 
     mpstate.status.counters['Slave'] += 1
 
