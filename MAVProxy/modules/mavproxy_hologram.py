@@ -46,7 +46,7 @@ class HologramModule(mp_module.MPModule):
         self.hologram_settings = mp_settings.MPSettings(
             [ ('verbose', bool, False),
           ])
-        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent', 'enablesms', 'disablesms'])
+        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent', 'enablesms', 'disablesms', 'enablereceive', 'disablereceive'])
 
         # Set hologram object and credentials to nothing to indicated not initialized
         self.hologram = None
@@ -59,10 +59,11 @@ class HologramModule(mp_module.MPModule):
 
         self.message_to_send = None
         self.enable_sms = False
+        self.enable_sms_receive = True
 
     def usage(self):
         '''show help on command line options'''
-        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY|enablesms|disablesms>"
+        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY|enablesms|disablesms|enablereceive|disablereceive>"
 
     def cmd_hologram(self, args):
         '''control behaviour of the module'''
@@ -82,6 +83,12 @@ class HologramModule(mp_module.MPModule):
         elif args[0] == "disablesms":
             print("Disabling command forwarding through SMS")
             self.enable_sms = False
+        elif args[0] == "enablereceive":
+            print("Enabling command receiving through SMS")
+            self.enable_sms_receive = True
+        elif args[0] == "disablereceive":
+            print("Disabling command receiving through SMS")
+            self.enable_sms_receive = False
         else:
             print(self.usage())
 
@@ -131,7 +138,7 @@ class HologramModule(mp_module.MPModule):
         data['deviceid'] = str(self.device_id)
         data['body'] = str(message_body)
 
-
+        print("Message body length: " + str(len(message_body)))
         json_payload = json.dumps(data)
 
         print json_payload
@@ -183,7 +190,7 @@ class HologramModule(mp_module.MPModule):
 
 
 
-            if self.hologram and self.hologram_credentials:
+            if self.hologram and self.hologram_credentials and self.enable_sms_receive:
                 #print("Checking for sms...")
                 msg_object = self.hologram.popReceivedSMS()
                 while msg_object is not None:
