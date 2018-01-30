@@ -150,11 +150,11 @@ class HologramModule(mp_module.MPModule):
     def sendcurrent(self):
 
 
-        msg = mavlink.MAVLink_command_long_message(self.target_system, self.target_component, mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0).pack(self.master.mav)
+        #msg = mavlink.MAVLink_command_long_message(self.target_system, self.target_component, mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0).pack(self.master.mav)
         #print "Msg type: " + str(type(msg))
         #print "Msg : " + str(msg.get_msgbuf())
-        return self.send_sms(base64.b64encode(msg))
-        #return self.send_sms(self.mavlink_packet_to_base64(self.message_to_send))
+        #return self.send_sms(base64.b64encode(msg))
+        return self.send_sms(self.mavlink_packet_to_base64(self.message_to_send))
         #return self.send_sms(self.mavlink_packet_to_base64(msg))
 
     def idle_task(self):
@@ -174,7 +174,7 @@ class HologramModule(mp_module.MPModule):
             if self.hologram and self.hologram_credentials:
                 print("Checking for sms...")
                 msg_object = self.hologram.popReceivedSMS()
-                if msg_object is not None:
+                while msg_object is not None:
                     print(msg_object)
                     print("SMS Received: " + msg_object.message)
                     decoded = base64.b64decode(msg_object.message) 
@@ -186,31 +186,26 @@ class HologramModule(mp_module.MPModule):
                     if packet:
                         print("Forwarding packet to the aircraft")
                         self.master.mav.send(packet)
+                    
+                    # Attempt to get another SMS from the queue
+                    msg_object = self.hologram.popReceivedSMS()
+
 
             else:
                 pass
-                #print("No hologram object or no credentials")
-            '''
-            m = self.message_to_send
-            print("\n------------")
-            print(m)
-            print(type(m))
-            print(type(m.get_msgbuf()))
-            print("Message buf: " + m.get_msgbuf())
-            print("B64Encode: " + base64.b64encode(m.get_msgbuf()))
-            print("B64Encode length: " + str(len(base64.b64encode(m.get_msgbuf()))))
-            print("B64Decode: " + base64.b64decode(base64.b64encode(m.get_msgbuf())))
-            print("DECODED: " + str(self.master.mav.parse_char(base64.b64decode(base64.b64encode(m.get_msgbuf())))))
-            print("------------\n")
-            '''
+
 
     def mavlink_packet(self, m):
         '''handle mavlink packets'''
-        if m.get_type() == 'ATTITUDE':
-            self.message_to_send = m
+        pass
+        #if m.get_type() == 'ATTITUDE':
+        #    self.message_to_send = m
     
     def handle_slave_command(self, m):
-        print(m)
+        if m.get_type() == 'SET_MODE':
+            print "Setting message to send = " + str(m)
+            self.message_to_send = m
+
 
 
 
