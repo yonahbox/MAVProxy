@@ -32,9 +32,11 @@ import base64
 MAX_SMS_LENGTH = 150
 
 # Optimizations: 
-#1.  Only send messages that have changed since last send
-# S
+#1. Only send messages that have changed since last send
+#2. Message lists should be a config file or parameter
+#3. Should have a message to lower or raise these rates
 
+'''
 MSG_WHITELISTS = [['ATTITUDE',
                   'EKF_STATUS_REPORT', 
                   'GLOBAL_POSITION_INT', 
@@ -56,6 +58,16 @@ MSG_WHITELISTS = [['ATTITUDE',
                   'VFR_HUD', 
                   'VIBRATION',
                   'WIND']]
+'''
+MSG_WHITELISTS = [['ATTITUDE',
+                  'EKF_STATUS_REPORT', 
+                  'GPS_RAW_INT', 
+                  'HEARTBEAT', 
+                  'MISSION_CURRENT', 
+                  'NAV_CONTROLLER_OUTPUT',
+                  'POWER_STATUS', 
+                  'RANGEFINDER',
+                  'VFR_HUD']]
 
 
 class HologramModule(mp_module.MPModule):
