@@ -275,9 +275,11 @@ class HologramModule(mp_module.MPModule):
                         compact_telemetry[str(index)] = self.mavlink_packet_to_base64(self.mpstate.status.msgs[msg_type])
                         print("MSG TYPE " + str(msg_type) + " LENGTH = " + str(len(compact_telemetry[str(index)])))
             
-                print compact_telemetry
                 print "Message length: " + str(len(json.dumps(compact_telemetry)))
-                self.send_data_message(str(compact_telemetry))
+                if compact_telemetry:
+                    self.send_data_message(str(compact_telemetry))
+                else:
+                    print "No telemetry data to send - skipping.."
                 print "-----------"
 
 
