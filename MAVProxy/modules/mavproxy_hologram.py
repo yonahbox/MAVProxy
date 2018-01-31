@@ -31,6 +31,33 @@ import base64
 
 MAX_SMS_LENGTH = 150
 
+# Optimizations: 
+#1.  Only send messages that have changed since last send
+# S
+
+MSG_WHITELISTS = [['ATTITUDE',
+                  'EKF_STATUS_REPORT', 
+                  'GLOBAL_POSITION_INT', 
+                  'GPS_RAW_INT', 
+                  'HEARTBEAT', 
+                  'HWSTATUS', 
+                  'MISSION_CURRENT', 
+                  'NAV_CONTROLLER_OUTPUT',
+                  'POSITION_TARGET_GLOBAL_INT', 
+                 ],
+                 ['POWER_STATUS', 
+                  'RAW_IMU', 
+                  'RC_CHANNELS', 
+                  'SCALED_IMU2', 
+                  'STATUSTEXT',
+                 ],
+                 ['SYSTEM_TIME', 
+                  'SYS_STATUS', 
+                  'VFR_HUD', 
+                  'VIBRATION',
+                  'WIND']]
+
+
 class HologramModule(mp_module.MPModule):
     def __init__(self, mpstate):
         """Initialise module"""
@@ -38,6 +65,7 @@ class HologramModule(mp_module.MPModule):
         self.status_callcount = 0
         self.pop_sms_interval = 2 # seconds
         self.last_checked = time.time()
+        self.last_checked_telem = time.time()
 
         self.packets_mytarget = 0
         self.packets_othertarget = 0
@@ -46,7 +74,7 @@ class HologramModule(mp_module.MPModule):
         self.hologram_settings = mp_settings.MPSettings(
             [ ('verbose', bool, False),
           ])
-        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent', 'enablesms', 'disablesms', 'enablereceive', 'disablereceive'])
+        self.add_command('hologram', self.cmd_hologram, "hologram module", ['status', 'start DEVICEKEY APIKEY', 'sendsms BODY', 'sendcurrent', 'enablesms', 'disablesms', 'enablereceive', 'disablereceive', 'enabletelem FREQUENCY_SECONDS', 'disabletelem'])
 
         # Set hologram object and credentials to nothing to indicated not initialized
         self.hologram = None
@@ -60,10 +88,12 @@ class HologramModule(mp_module.MPModule):
         self.message_to_send = None
         self.enable_sms = False
         self.enable_sms_receive = True
+        self.enable_telem = False
+        self.telem_frequency = 10
 
     def usage(self):
         '''show help on command line options'''
-        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY|enablesms|disablesms|enablereceive|disablereceive>"
+        return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY|enablesms|disablesms|enablereceive|disablereceive|enabletelem FREQUENCY_SECONDS|disabletelem>"
 
     def cmd_hologram(self, args):
         '''control behaviour of the module'''
@@ -89,6 +119,13 @@ class HologramModule(mp_module.MPModule):
         elif args[0] == "disablereceive":
             print("Disabling command receiving through SMS")
             self.enable_sms_receive = False
+        elif args[0] == "enabletelem" and len(args) == 2:
+            print("Enabling telemetry output through mobile data")
+            self.enable_telem = True
+            self.telem_frequency = int(args[1])
+        elif args[0] == "disablereceive":
+            print("Disabling telemetry output through mobile data")
+            self.enable_telem = False
         else:
             print(self.usage())
 
@@ -177,6 +214,10 @@ class HologramModule(mp_module.MPModule):
     def send_mavlink_packet_through_sms(self, packet):
         return self.send_sms(self.mavlink_packet_to_base64(packet))
 
+    def send_data_message(self, msg):
+        print("Sending hologram message: " + str(msg))
+        recv = self.hologram.sendMessage(msg)
+        print("Received hologram message response: " + str(recv))
 
     def idle_task(self):
         '''called rapidly by mavproxy'''
@@ -184,11 +225,6 @@ class HologramModule(mp_module.MPModule):
         now = time.time()
         if now-self.last_checked > self.pop_sms_interval:
             self.last_checked = now
-            #msg = mavlink.MAVLink_command_long_message(self.target_system, self.target_component, mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0)#.pack(self.master.mav)
-            #print "Msg : " + str(msg)
-            #self.master.mav.send(msg)
-
-
 
             if self.hologram and self.hologram_credentials and self.enable_sms_receive:
                 #print("Checking for sms...")
@@ -216,6 +252,21 @@ class HologramModule(mp_module.MPModule):
 
             else:
                 pass
+
+        if self.enable_telem and now-self.last_checked_telem > self.telem_frequency:
+            self.last_checked_telem = now
+            # Gather all the messages we care about into a dict
+            compact_telemetry = {}
+            for msg_whitelist in MSG_WHITELISTS:
+                for index, msg_type in enumerate(msg_whitelist):
+                    if msg_type in self.mpstate.status.msgs:
+                        compact_telemetry[str(index)] = self.mavlink_packet_to_base64(self.mpstate.status.msgs[msg_type])
+                        print("MSG TYPE " + str(msg_type) + " LENGTH = " + str(len(compact_telemetry[str(index)])))
+            
+                print compact_telemetry
+                print "Message length: " + str(len(json.dumps(compact_telemetry)))
+                self.send_data_message(str(compact_telemetry))
+                print "-----------"
 
 
     def mavlink_packet(self, m):
