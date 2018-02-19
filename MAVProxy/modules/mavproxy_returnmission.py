@@ -42,12 +42,12 @@ BLINK_LENGTH = 0.1
 class ReturnModule(mp_module.MPModule):
     def __init__(self, mpstate):
         """Initialise module"""
-        super(ReturnModule, self).__init__(mpstate, "return", "Return Mission module")
+        super(ReturnModule, self).__init__(mpstate, "return", "return module")
         self.boredom_interval = 10 # seconds
         self.last_bored = time.time()
         self.button_state = BUTTON_RELEASED
         self.verbose = False
-        self.add_command('return', self.cmd_return, "Return Mission module", ['start'])
+        self.add_command('return', self.cmd_return, "return module", ['start'])
         self.blink_led = False
         self.blink_state = BLINK_WAITING
         self.blink_thread = None
@@ -87,6 +87,7 @@ class ReturnModule(mp_module.MPModule):
             self.signal_blink_thread_shutdown = True
             self.blink_thread.join()
             self.blink_thread = None
+            self.signal_blink_thread_shutdown = False
 
 
     def waiting_blink_thread(self):
