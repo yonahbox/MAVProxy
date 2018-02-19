@@ -113,6 +113,9 @@ class ReturnModule(mp_module.MPModule):
             else:
                 self.system_state = STATE_WAITING
                 print "Button was not held long enough!"
+        elif (self.system_state == STATE_TRY_LOAD_MISSION or self.system_state == STATE_WAIT_EXECUTE) and state == BUTTON_PRESSED:
+            print "Cancelling return mission load / execute"
+            self.system_state = STATE_WAITING
 
 
 
