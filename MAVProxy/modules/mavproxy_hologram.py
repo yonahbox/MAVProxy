@@ -228,8 +228,11 @@ class HologramModule(mp_module.MPModule):
 
     def send_data_message(self, msg):
         print("Sending hologram message: " + str(msg))
-        recv = self.hologram.sendMessage(msg)
-        print("Received hologram message response: " + str(recv))
+        try:
+            recv = self.hologram.sendMessage(msg, timeout=10)
+            print("Received hologram message response: " + str(recv))
+        except Exception as e:
+            print "Exception received: " + str(e)
 
     def idle_task(self):
         '''called rapidly by mavproxy'''
