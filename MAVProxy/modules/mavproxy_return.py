@@ -25,7 +25,6 @@ except ImportError:
 
 # Threading and time for LED
 import threading
-import time
 
 # Constants
 BUTTON_RELEASED = 0
@@ -36,6 +35,18 @@ BUTTON_PIN = "P9_19"
 
 BLINK_WAITING = 100
 
+
+STATE_WAITING = 200
+STATE_WAITING_DOWN = 201
+STATE_WAITING_LONG_UP = 202
+STATE_WAITING_LONG_DOWN = 203
+STATE_TRY_LOAD_MISSION = 204
+STATE_WAIT_EXECUTE = 205
+STATE_EXECUTE = 206
+
+# Timeouts for states
+LONG_PRESS_REQUIRED_TIME_SEC = 4
+WAITING_FOR_LONG_PRESS_TIMEOUT = 2
 
 # Blink interval constants (sec)
 BLINK_SET_INTERVAL = 1.5
@@ -51,10 +62,16 @@ class ReturnModule(mp_module.MPModule):
         self.button_state = BUTTON_RELEASED
         self.verbose = False
         self.add_command('return', self.cmd_return, "return module", ['start', 'stop'])
+
         self.blink_led = False
         self.blink_state = BLINK_WAITING
         self.blink_thread = None
         self.signal_blink_thread_shutdown = False
+
+        # State machine variables and timeouts
+        self.system_state = STATE_WAITING
+        self.waiting_long_up_start_time = time.time()
+        self.long_press_start_time = time.time()
 
     def usage(self):
         '''show help on command line options'''
@@ -71,6 +88,37 @@ class ReturnModule(mp_module.MPModule):
         else:
             print(self.usage())
 
+    
+    def handle_button_edge(self, button):
+        state = GPIO.input(button)
+        print "Button state: " + str(state)
+
+        if self.system_state == STATE_WAITING and state == BUTTON_PRESSED:
+            self.system_state = STATE_WAITING_DOWN
+            print "Waiting for button release"
+        elif self.system_state == STATE_WAITING_DOWN and state == BUTTON_RELEASED:
+            self.system_state = STATE_WAITING_LONG_UP
+            print "Waiting for long press up"
+            self.waiting_long_up_start_time = time.time()
+        elif self.system_state == STATE_WAITING_LONG_UP and state == BUTTON_PRESSED:
+            # We expect that the idle task would have checked this timeout for us already
+            self.system_state = STATE_WAITING_LONG_DOWN
+            print "Waiting for long press release"
+            self.long_press_start_time = time.time()
+        elif self.system_state == STATE_WAITING_LONG_DOWN and state == BUTTON_RELEASED:
+            # Check if button was held for long enough
+            if time.time() - self.long_press_start_time > LONG_PRESS_REQUIRED_TIME_SEC:
+                self.system_state = STATE_TRY_LOAD_MISSION
+                print "Trying to load mission!"
+            else:
+                self.system_state = STATE_WAITING
+                print "Button was not held long enough!"
+
+
+
+
+
+
     def start(self):
         '''start GPIO interrupt listening for button and enable LED flashing'''
         # Set the modes for both the led and button GPIOs
@@ -85,6 +133,9 @@ class ReturnModule(mp_module.MPModule):
 
         self.blink_thread = threading.Thread(target=self.waiting_blink_thread)
         self.blink_thread.start()
+
+        # Setup button interrupts
+        GPIO.add_event_detect(BUTTON_PIN, GPIO.BOTH, callback=self.handle_button_edge)
 
 
     def stop_running_blink_thread(self):
@@ -129,6 +180,9 @@ class ReturnModule(mp_module.MPModule):
     def idle_task(self):
         '''called rapidly by mavproxy'''
         now = time.time()
+        if self.state == STATE_WAITING_LONG_UP and now - self.waiting_long_up_start_time > WAITING_FOR_LONG_PRESS_TIMEOUT:
+            print "Waiting too long before long press - returning to start state"
+            self.system_state = STATE_WAITING
 
 
 def init(mpstate):
