@@ -19,9 +19,10 @@ from MAVProxy.modules.lib import mp_util
 from MAVProxy.modules.lib import mp_settings
 
 # Hologram-specific imports
-from Hologram.HologramCloud import HologramCloud
-from Exceptions.HologramError import PPPError
-from scripts.hologram_util import handle_polling
+if os.name != 'nt':
+    from Hologram.HologramCloud import HologramCloud
+    from Exceptions.HologramError import PPPError
+    from scripts.hologram_util import handle_polling
 
 # For Hologram Cloud REST API
 from urllib2 import Request, urlopen, URLError
@@ -152,13 +153,16 @@ class HologramModule(mp_module.MPModule):
         return("\n**** HOLOGRAM NOVA CONNECTION STATUS ****\nRSSI: " + str(rssi) + " | Quality: " + str(qual) + "\nOperator: " + str(self.hologram.network.operator) + "\nIMSI: " + str(self.hologram.network.imsi) + " | ICCID: " +  str(self.hologram.network.iccid) + "\nCloud Type: " + str(self.hologram) + " | Network Type: " + str(self.hologram.network_type) + "\n**** END STATUS ****\n")
 
     def handle_sms_received(self):
+        if os.name == 'nt':
+            print "SMS reception not supported on Windows"
+            return
         recv = self.hologram.popReceivedSMS()
         if recv is not None:
             print 'Received message: ' + str(recv)
 
     def start(self, device_id, apikey):
         # Initialize credentials and hologram object
-        if self.hologram_credentials is None:
+        if self.hologram_credentials is None and os.name != 'nt':
             #self.hologram_credentials = {'devicekey': devicekey}
             try:
                 self.hologram_credentials = dict()
@@ -227,6 +231,9 @@ class HologramModule(mp_module.MPModule):
         return self.send_sms(self.mavlink_packet_to_base64(packet))
 
     def send_data_message(self, msg):
+        if os.name == 'nt':
+            print "Hologram data sending not supported on Windows"
+            return
         print("Sending hologram message: " + str(msg))
         try:
             recv = self.hologram.sendMessage(msg, timeout=10)
@@ -238,7 +245,7 @@ class HologramModule(mp_module.MPModule):
         '''called rapidly by mavproxy'''
 
         now = time.time()
-        if now-self.last_checked > self.pop_sms_interval:
+        if now-self.last_checked > self.pop_sms_interval and os.name != 'nt':
             self.last_checked = now
 
             if self.hologram and self.hologram_credentials and self.enable_sms_receive:
@@ -268,7 +275,7 @@ class HologramModule(mp_module.MPModule):
             else:
                 pass
 
-        if self.enable_telem and now-self.last_checked_telem > self.telem_frequency:
+        if self.enable_telem and now-self.last_checked_telem > self.telem_frequency and os.name != 'nt':
             self.last_checked_telem = now
             # Gather all the messages we care about into a dict
             compact_telemetry = {}
