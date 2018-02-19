@@ -18,7 +18,10 @@ from MAVProxy.modules.lib import mp_util
 from MAVProxy.modules.lib import mp_settings
 
 # Beaglebone-specific
-import Adafruit_BBIO.GPIO as GPIO
+try:
+    import Adafruit_BBIO.GPIO as GPIO
+except ImportError:
+    print "Cannot import BBIO - this is probably not a Beaglebone."
 
 # Threading and time for LED
 import threading
