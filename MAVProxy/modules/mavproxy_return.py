@@ -180,7 +180,7 @@ class ReturnModule(mp_module.MPModule):
     def idle_task(self):
         '''called rapidly by mavproxy'''
         now = time.time()
-        if self.state == STATE_WAITING_LONG_UP and now - self.waiting_long_up_start_time > WAITING_FOR_LONG_PRESS_TIMEOUT:
+        if self.system_state == STATE_WAITING_LONG_UP and now - self.waiting_long_up_start_time > WAITING_FOR_LONG_PRESS_TIMEOUT:
             print "Waiting too long before long press - returning to start state"
             self.system_state = STATE_WAITING
 
