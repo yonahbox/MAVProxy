@@ -50,7 +50,7 @@ class ReturnModule(mp_module.MPModule):
         self.last_bored = time.time()
         self.button_state = BUTTON_RELEASED
         self.verbose = False
-        self.add_command('return', self.cmd_return, "return module", ['start'])
+        self.add_command('return', self.cmd_return, "return module", ['start', 'stop'])
         self.blink_led = False
         self.blink_state = BLINK_WAITING
         self.blink_thread = None
@@ -58,7 +58,7 @@ class ReturnModule(mp_module.MPModule):
 
     def usage(self):
         '''show help on command line options'''
-        return "Usage: return <start>"
+        return "Usage: return <start>|<stop>"
 
     def cmd_return(self, args):
         '''control behaviour of the module'''
@@ -66,6 +66,8 @@ class ReturnModule(mp_module.MPModule):
             print(self.usage())
         elif args[0] == "start":
             print(self.start())
+        elif args[0] == "stop":
+            print(self.stop_running_blink_thread())
         else:
             print(self.usage())
 
@@ -82,6 +84,7 @@ class ReturnModule(mp_module.MPModule):
         self.stop_running_blink_thread()
 
         self.blink_thread = threading.Thread(target=self.waiting_blink_thread)
+        self.blink_thread.start()
 
 
     def stop_running_blink_thread(self):
