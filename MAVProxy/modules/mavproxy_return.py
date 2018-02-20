@@ -162,7 +162,11 @@ class ReturnModule(mp_module.MPModule):
         for (module, _) in self.mpstate.modules:
             if module.name == "wp":
                 wp_module = module
-        
+
+       if self.master.motors_armed():
+           print "Cannot load mission - drone is already armed!"
+           return False
+
         if not wp_module:
             print "Unable to load the waypoint module"
             return False
