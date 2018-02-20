@@ -316,7 +316,8 @@ class ReturnModule(mp_module.MPModule):
                 self.system_state = STATE_EXECUTE
         elif self.system_state == STATE_EXECUTE:
             # Run through the execute mission state machine
-            if self.execute_state == EXECUTE_STATE_TRY_QHOVER:
+            # Don't even start if we're armed - we might be flying
+            if self.execute_state == EXECUTE_STATE_TRY_QHOVER and (not self.master.motors_armed()):
                 # Try to execute QHOVER mode
                 modenum = self.master.mode_mapping()["QHOVER"]
                 self.master.set_mode(modenum)
