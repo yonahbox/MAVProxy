@@ -318,7 +318,7 @@ class ReturnModule(mp_module.MPModule):
             # Run through the execute mission state machine
             if self.execute_state == EXECUTE_STATE_TRY_QHOVER:
                 # Try to execute QHOVER mode
-                modenum = self.master.mode_mapping["QHOVER"]
+                modenum = self.master.mode_mapping()["QHOVER"]
                 self.master.set_mode(modenum)
                 print "Tried to set QHOVER"
                 self.execute_state = EXECUTE_STATE_QHOVER_TRIED
@@ -331,7 +331,7 @@ class ReturnModule(mp_module.MPModule):
                 self.master.arducopter_arm()
                 self.execute_state = EXECUTE_STATE_ARM_TRIED
             elif self.execute_state == EXECUTE_STATE_ARM_TRIED:
-                modenum = self.master.mode_mapping["AUTO"]
+                modenum = self.master.mode_mapping()["AUTO"]
                 self.master.set_mode(modenum)
                 print "Tried to set AUTO"
                 self.execute_state = EXECUTE_STATE_AUTO_TRIED
