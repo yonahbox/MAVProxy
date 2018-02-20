@@ -30,6 +30,9 @@ import threading
 BUTTON_RELEASED = 0
 BUTTON_PRESSED = 1
 
+LED_ON = 0
+LED_OFF = 1
+
 LED_PIN = "P9_22"
 BUTTON_PIN = "P9_19"
 
@@ -52,6 +55,7 @@ WAITING_FOR_LONG_PRESS_TIMEOUT = 2
 BLINK_SET_INTERVAL = 1.5
 BLINK_BETWEEN_INTERVAL = 0.1
 BLINK_LENGTH = 0.1
+BLINK_LONG_PRESS_TIMER_INTERVAL = 0.1
 
 class ReturnModule(mp_module.MPModule):
     def __init__(self, mpstate):
@@ -154,8 +158,9 @@ class ReturnModule(mp_module.MPModule):
         # Remember to turn off the LED on exit
         print "Blink thread started"
 
-        while True:
+        while not self.signal_blink_thread_shutdown:
             self.waiting_blink_program(valid_states=[STATE_WAITING, STATE_WAITING_DOWN])
+            self.long_press_program(valid_states=[STATE_WAITING_LONG_DOWN])
             time.sleep(0.1)
            
         
@@ -166,17 +171,17 @@ class ReturnModule(mp_module.MPModule):
             if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
                 break
 
-            GPIO.output(LED_PIN, 0)
+            GPIO.output(LED_PIN, LED_ON)
             time.sleep(BLINK_LENGTH)
-            GPIO.output(LED_PIN, 1)
+            GPIO.output(LED_PIN, LED_OFF)
             time.sleep(BLINK_BETWEEN_INTERVAL)
 
             if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
                 break
 
-            GPIO.output(LED_PIN, 0)
+            GPIO.output(LED_PIN, LED_ON)
             time.sleep(BLINK_LENGTH)
-            GPIO.output(LED_PIN, 1)
+            GPIO.output(LED_PIN, LED_OFF)
             time.sleep(BLINK_BETWEEN_INTERVAL)
 
             if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
@@ -184,6 +189,21 @@ class ReturnModule(mp_module.MPModule):
 
             time.sleep(BLINK_SET_INTERVAL)
 
+    def long_press_program(self, valid_states=None):
+        while True:
+            if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
+                break
+
+            if time.time() - self.long_press_start_time > LONG_PRESS_REQUIRED_TIME_SEC:
+                # Button was held for long enough
+                GPIO.output(LED_PIN, LED_ON)
+                time.sleep(BLINK_LENGTH)
+            else:
+                # Button needs to be held longer
+                GPIO.output(LED_PIN, LED_ON)
+                time.sleep(BLINK_LONG_PRESS_TIMER_INTERVAL)
+                GPIO.output(LED_PIN, LED_OFF)
+                time.sleep(BLINK_LONG_PRESS_TIMER_INTERVAL)
 
 
     def idle_task(self):
