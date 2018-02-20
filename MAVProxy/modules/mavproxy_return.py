@@ -286,7 +286,10 @@ class ReturnModule(mp_module.MPModule):
         elif self.system_state == STATE_TRY_LOAD_MISSION:
             if now - self.try_load_mission_start_time > TRY_LOAD_MISSION_TIMEOUT:
                 # We were trying to load the mission and the timeout has been exceeded - check if mission was loaded
-                if self.wp_module and (not self.wp_module.loading_waypoints):
+                # We check loading_waypoints if we've completed sending all waypoints,
+                #  and confirm that the last time a waypoint was uploaded was
+                #  after WE started asking mavwp to upload the mission
+                if self.wp_module and (not self.wp_module.loading_waypoints) and (self.wp_module.loading_waypoint_lasttime > self.try_load_mission_start_time):
                     # We have a handle on the wp module and we are DONE loading waypints
                     self.system_state = STATE_WAIT_EXECUTE
                     print "Waiting to execute - takeoff is " + str(TIME_TO_TAKEOFF_SEC) + " seconds from now!"
