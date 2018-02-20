@@ -155,8 +155,15 @@ class ReturnModule(mp_module.MPModule):
         print "Blink thread started"
 
         while True:
-
-            if self.signal_blink_thread_shutdown:
+            self.waiting_blink_program(valid_states=[STATE_WAITING, STATE_WAITING_DOWN])
+            time.sleep(0.1)
+           
+        
+        print "Blink thread shutdown"
+    
+    def waiting_blink_program(self, valid_states=None):
+        while True:
+            if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
                 break
 
             GPIO.output(LED_PIN, 0)
@@ -164,7 +171,7 @@ class ReturnModule(mp_module.MPModule):
             GPIO.output(LED_PIN, 1)
             time.sleep(BLINK_BETWEEN_INTERVAL)
 
-            if self.signal_blink_thread_shutdown:
+            if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
                 break
 
             GPIO.output(LED_PIN, 0)
@@ -172,12 +179,11 @@ class ReturnModule(mp_module.MPModule):
             GPIO.output(LED_PIN, 1)
             time.sleep(BLINK_BETWEEN_INTERVAL)
 
-            if self.signal_blink_thread_shutdown:
+            if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
                 break
 
             time.sleep(BLINK_SET_INTERVAL)
-        
-        print "Blink thread shutdown"
+
 
 
     def idle_task(self):
