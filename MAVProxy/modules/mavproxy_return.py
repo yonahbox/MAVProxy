@@ -63,7 +63,7 @@ BLINK_DANGER_INTERVAL = 0.05
 
 BLINK_DANGER_TIME_TO_TAKEOFF = 15
 
-WAYPOINT_FILE_PATH = "return_waypoints.txt"
+WAYPOINT_FILE_PATH = "/home/debian/return_waypoints.txt"
 
 
 class ReturnModule(mp_module.MPModule):
