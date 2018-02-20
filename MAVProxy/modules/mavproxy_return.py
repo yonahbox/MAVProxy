@@ -36,8 +36,6 @@ LED_OFF = 1
 LED_PIN = "P9_22"
 BUTTON_PIN = "P9_19"
 
-BLINK_WAITING = 100
-
 
 STATE_WAITING = 200
 STATE_WAITING_DOWN = 201
@@ -47,6 +45,9 @@ STATE_TRY_LOAD_MISSION = 204
 STATE_WAIT_EXECUTE = 205
 STATE_EXECUTE = 206
 
+## CHANGE THIS AFTER TESTING
+TIME_TO_TAKEOFF_SEC = 20
+
 # Timeouts for states
 LONG_PRESS_REQUIRED_TIME_SEC = 4
 WAITING_FOR_LONG_PRESS_TIMEOUT = 2
@@ -55,7 +56,12 @@ WAITING_FOR_LONG_PRESS_TIMEOUT = 2
 BLINK_SET_INTERVAL = 1.5
 BLINK_BETWEEN_INTERVAL = 0.1
 BLINK_LENGTH = 0.1
-BLINK_LONG_PRESS_TIMER_INTERVAL = 0.1
+BLINK_LONG_PRESS_TIMER_INTERVAL = 0.15
+BLINK_WARNING_INTERVAL = 0.1
+BLINK_DANGER_INTERVAL = 0.05
+
+BLINK_DANGER_TIME_TO_TAKEOFF = 15
+
 
 class ReturnModule(mp_module.MPModule):
     def __init__(self, mpstate):
@@ -68,7 +74,6 @@ class ReturnModule(mp_module.MPModule):
         self.add_command('return', self.cmd_return, "return module", ['start', 'stop'])
 
         self.blink_led = False
-        self.blink_state = BLINK_WAITING
         self.blink_thread = None
         self.signal_blink_thread_shutdown = False
 
@@ -114,6 +119,9 @@ class ReturnModule(mp_module.MPModule):
             if time.time() - self.long_press_start_time > LONG_PRESS_REQUIRED_TIME_SEC:
                 self.system_state = STATE_TRY_LOAD_MISSION
                 print "Trying to load mission!"
+                # FOR DEBUGGING
+                self.system_state = STATE_WAIT_EXECUTE
+                self.takeoff_time = time.time() + TIME_TO_TAKEOFF_SEC
             else:
                 self.system_state = STATE_WAITING
                 print "Button was not held long enough!"
@@ -161,6 +169,8 @@ class ReturnModule(mp_module.MPModule):
         while not self.signal_blink_thread_shutdown:
             self.waiting_blink_program(valid_states=[STATE_WAITING, STATE_WAITING_DOWN])
             self.long_press_program(valid_states=[STATE_WAITING_LONG_DOWN])
+            self.wait_execute_program(valid_states=[STATE_WAIT_EXECUTE])
+            # In case nothing matches, we don't want to eat up all the CPU
             time.sleep(0.1)
            
         
@@ -204,6 +214,26 @@ class ReturnModule(mp_module.MPModule):
                 time.sleep(BLINK_LONG_PRESS_TIMER_INTERVAL)
                 GPIO.output(LED_PIN, LED_OFF)
                 time.sleep(BLINK_LONG_PRESS_TIMER_INTERVAL)
+
+    def wait_execute_program(self, valid_states=None):
+        while True:
+            if self.signal_blink_thread_shutdown or not (self.system_state in valid_states):
+                break
+
+            if self.takeoff_time - time.time() > BLINK_DANGER_TIME_TO_TAKEOFF:
+                # Still in warning mode - blink less frequently
+                GPIO.output(LED_PIN, LED_ON)
+                time.sleep(BLINK_WARNING_INTERVAL)
+                GPIO.output(LED_PIN, LED_OFF)
+                time.sleep(BLINK_WARNING_INTERVAL)
+            else:
+                # 15 sec to takeoff - blink furiously
+                GPIO.output(LED_PIN, LED_ON)
+                time.sleep(BLINK_DANGER_INTERVAL)
+                GPIO.output(LED_PIN, LED_OFF)
+                time.sleep(BLINK_DANGER_INTERVAL)
+
+
 
 
     def idle_task(self):
