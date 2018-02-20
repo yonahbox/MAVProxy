@@ -163,7 +163,7 @@ class ReturnModule(mp_module.MPModule):
             if module.name == "wp":
                 wp_module = module
 
-       if self.master.motors_armed():
+        if self.master.motors_armed():
            print "Cannot load mission - drone is already armed!"
            return False
 
