@@ -45,6 +45,14 @@ STATE_TRY_LOAD_MISSION = 204
 STATE_WAIT_EXECUTE = 205
 STATE_EXECUTE = 206
 
+EXECUTE_STATE_TRY_QHOVER = 300
+EXECUTE_STATE_QHOVER_TRIED = 301
+EXECUTE_STATE_TRY_ARM = 302
+EXECUTE_STATE_ARM_TRIED = 303
+EXECUTE_STATE_TRY_AUTO = 304
+EXECUTE_STATE_AUTO_TRIED = 305
+
+
 ## CHANGE THIS AFTER TESTING
 TIME_TO_TAKEOFF_SEC = 20
 
@@ -82,6 +90,7 @@ class ReturnModule(mp_module.MPModule):
 
         # State machine variables and timeouts
         self.system_state = STATE_WAITING
+        self.execute_state = EXECUTE_STATE_TRY_QHOVER
         self.waiting_long_up_start_time = time.time()
         self.long_press_start_time = time.time()
         self.try_load_mission_start_time = time.time()        
@@ -304,7 +313,36 @@ class ReturnModule(mp_module.MPModule):
             if self.takeoff_time - now < 0:
                 # Takeoff time has passed - execute takeoff
                 print "Takeoff!"
-                self.system_state = STATE_WAITING
+                self.system_state = STATE_EXECUTE
+        elif self.system_state == STATE_EXECUTE:
+            # Run through the execute mission state machine
+            if self.execute_state == EXECUTE_STATE_TRY_QHOVER:
+                # Try to execute QHOVER mode
+                modenum = self.master.mode_mapping["QHOVER"]
+                self.master.set_mode(modenum)
+                print "Tried to set QHOVER"
+                self.execute_state = EXECUTE_STATE_QHOVER_TRIED
+            elif self.execute_state == EXECUTE_STATE_QHOVER_TRIED:
+                if self.mpstate.status.flightmode == "QHOVER":
+                    print "Mode is QHOVER - going to try arming"
+                    self.execute_state = EXECUTE_STATE_TRY_ARM
+            elif self.execute_state == EXECUTE_STATE_TRY_ARM:
+                print "Trying to arm"
+                self.master.arducopter_arm()
+                self.execute_state = EXECUTE_STATE_ARM_TRIED
+            elif self.execute_state == EXECUTE_STATE_ARM_TRIED:
+                modenum = self.master.mode_mapping["AUTO"]
+                self.master.set_mode(modenum)
+                print "Tried to set AUTO"
+                self.execute_state = EXECUTE_STATE_AUTO_TRIED
+            elif self.execute_state == EXECUTE_STATE_AUTO_TRIED:
+                if self.mpstate.status.flightmode == "AUTO":
+                    print "Mode is AUTO - work done"
+                    self.execute_state = EXECUTE_STATE_TRY_QHOVER
+                    self.system_state = STATE_WAITING
+
+
+
 
 
 
