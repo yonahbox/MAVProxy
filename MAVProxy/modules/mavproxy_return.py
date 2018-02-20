@@ -125,12 +125,14 @@ class ReturnModule(mp_module.MPModule):
         elif self.system_state == STATE_WAITING_LONG_DOWN and state == BUTTON_RELEASED:
             # Check if button was held for long enough
             if time.time() - self.long_press_start_time > LONG_PRESS_REQUIRED_TIME_SEC:
+                # Time is up here to prevent race condition with idle_task to check mission start time
+                self.try_load_mission_start_time = time.time() 
                 self.system_state = STATE_TRY_LOAD_MISSION
                 print "Trying to load mission!"
                 result = self.try_load_mission()
                 if result:
                     # External timers will track if we've truly loaded the mission and transition us accordingly
-                    self.try_load_mission_start_time = time.time() 
+                    print "Waiting for timeout before checking mission load state"
                     pass
                 else:
                     # Failed to find the file or something - go back to start state
