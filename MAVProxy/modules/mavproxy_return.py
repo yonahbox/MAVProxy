@@ -94,6 +94,7 @@ class ReturnModule(mp_module.MPModule):
         self.waiting_long_up_start_time = time.time()
         self.long_press_start_time = time.time()
         self.try_load_mission_start_time = time.time()        
+        self.takeoff_time = time.time()
 
 
         # DEBUG REMOVE!        
@@ -306,9 +307,9 @@ class ReturnModule(mp_module.MPModule):
                 #  after WE started asking mavwp to upload the mission
                 if self.wp_module and (not self.wp_module.loading_waypoints) and (self.wp_module.loading_waypoint_lasttime > self.try_load_mission_start_time):
                     # We have a handle on the wp module and we are DONE loading waypints
+                    self.takeoff_time = now + TIME_TO_TAKEOFF_SEC
                     self.system_state = STATE_WAIT_EXECUTE
                     print "Waiting to execute - takeoff is " + str(TIME_TO_TAKEOFF_SEC) + " seconds from now!"
-                    self.takeoff_time = now + TIME_TO_TAKEOFF_SEC
                 else:
                     # We encountered some error in loading waypoints in the given timeframe
                     print "Waypoints not loaded!"
