@@ -331,10 +331,11 @@ class ReturnModule(mp_module.MPModule):
                 self.master.arducopter_arm()
                 self.execute_state = EXECUTE_STATE_ARM_TRIED
             elif self.execute_state == EXECUTE_STATE_ARM_TRIED:
-                modenum = self.master.mode_mapping()["AUTO"]
-                self.master.set_mode(modenum)
-                print "Tried to set AUTO"
-                self.execute_state = EXECUTE_STATE_AUTO_TRIED
+                if self.master.motors_armed():
+                    modenum = self.master.mode_mapping()["AUTO"]
+                    self.master.set_mode(modenum)
+                    print "Tried to set AUTO"
+                    self.execute_state = EXECUTE_STATE_AUTO_TRIED
             elif self.execute_state == EXECUTE_STATE_AUTO_TRIED:
                 if self.mpstate.status.flightmode == "AUTO":
                     print "Mode is AUTO - work done"
