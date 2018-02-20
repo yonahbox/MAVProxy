@@ -88,7 +88,7 @@ class ReturnModule(mp_module.MPModule):
 
 
         # DEBUG REMOVE!        
-        self.try_load_mission()
+        # self.try_load_mission()
 
     def usage(self):
         '''show help on command line options'''
@@ -156,6 +156,10 @@ class ReturnModule(mp_module.MPModule):
             print "Unable to load the waypoint module"
             return False
 
+        if not os.path.isfile(WAYPOINT_FILE_PATH):
+            print "Cannot find waypoint file " + str(WAYPOINT_FILE_PATH)
+            return False
+
         print "Loading waypoints!"
         wp_module.load_waypoints(WAYPOINT_FILE_PATH)
         print "Done loading waypoints."
@@ -183,6 +187,7 @@ class ReturnModule(mp_module.MPModule):
         self.stop_running_blink_thread()
 
         self.blink_thread = threading.Thread(target=self.waiting_blink_thread)
+        self.blink_thread.daemon = True
         self.blink_thread.start()
 
         # Setup button interrupts
@@ -284,7 +289,7 @@ class ReturnModule(mp_module.MPModule):
                 if self.wp_module and (not self.wp_module.loading_waypoints):
                     # We have a handle on the wp module and we are DONE loading waypints
                     self.system_state = STATE_WAIT_EXECUTE
-                    print "Waiting to execute - takeoff is " + str(TIME_TO_TAKEOFF_SEC) + " from now!"
+                    print "Waiting to execute - takeoff is " + str(TIME_TO_TAKEOFF_SEC) + " seconds from now!"
                     self.takeoff_time = now + TIME_TO_TAKEOFF_SEC
                 else:
                     # We encountered some error in loading waypoints in the given timeframe
