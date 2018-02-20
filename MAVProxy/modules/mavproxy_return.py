@@ -51,6 +51,7 @@ TIME_TO_TAKEOFF_SEC = 20
 # Timeouts for states
 LONG_PRESS_REQUIRED_TIME_SEC = 4
 WAITING_FOR_LONG_PRESS_TIMEOUT = 2
+TRY_LOAD_MISSION_TIMEOUT = 3
 
 # Blink interval constants (sec)
 BLINK_SET_INTERVAL = 1.5
@@ -61,6 +62,8 @@ BLINK_WARNING_INTERVAL = 0.1
 BLINK_DANGER_INTERVAL = 0.05
 
 BLINK_DANGER_TIME_TO_TAKEOFF = 15
+
+WAYPOINT_FILE_PATH = "return_waypoints.txt"
 
 
 class ReturnModule(mp_module.MPModule):
@@ -81,6 +84,11 @@ class ReturnModule(mp_module.MPModule):
         self.system_state = STATE_WAITING
         self.waiting_long_up_start_time = time.time()
         self.long_press_start_time = time.time()
+        self.try_load_mission_start_time = time.time()        
+
+
+        # DEBUG REMOVE!        
+        self.try_load_mission()
 
     def usage(self):
         '''show help on command line options'''
@@ -119,9 +127,17 @@ class ReturnModule(mp_module.MPModule):
             if time.time() - self.long_press_start_time > LONG_PRESS_REQUIRED_TIME_SEC:
                 self.system_state = STATE_TRY_LOAD_MISSION
                 print "Trying to load mission!"
-                # FOR DEBUGGING
-                self.system_state = STATE_WAIT_EXECUTE
-                self.takeoff_time = time.time() + TIME_TO_TAKEOFF_SEC
+                result = self.try_load_mission()
+                if result:
+                    # External timers will track if we've truly loaded the mission and transition us accordingly
+                    self.try_load_mission_start_time = time.time() 
+                    pass
+                else:
+                    # Failed to find the file or something - go back to start state
+                    print "Failed to try load mission, possibly WP file not found"
+                    self.system_state = STATE_WAITING
+
+
             else:
                 self.system_state = STATE_WAITING
                 print "Button was not held long enough!"
@@ -130,6 +146,26 @@ class ReturnModule(mp_module.MPModule):
             self.system_state = STATE_WAITING
 
 
+    def try_load_mission(self):
+        wp_module = None
+        for (module, _) in self.mpstate.modules:
+            if module.name == "wp":
+                wp_module = module
+        
+        if not wp_module:
+            print "Unable to load the waypoint module"
+            return False
+
+        print "Loading waypoints!"
+        wp_module.load_waypoints(WAYPOINT_FILE_PATH)
+        print "Done loading waypoints."
+        print "Trying to send waypoints to aircraft"
+
+        # Set the wp module so that we can access it later
+        self.wp_module = wp_module
+
+        # Mission loaded confirmation will be done inside idle task
+        return True 
 
 
 
@@ -242,6 +278,26 @@ class ReturnModule(mp_module.MPModule):
         if self.system_state == STATE_WAITING_LONG_UP and now - self.waiting_long_up_start_time > WAITING_FOR_LONG_PRESS_TIMEOUT:
             print "Waiting too long before long press - returning to start state"
             self.system_state = STATE_WAITING
+        elif self.system_state == STATE_TRY_LOAD_MISSION:
+            if now - self.try_load_mission_start_time > TRY_LOAD_MISSION_TIMEOUT:
+                # We were trying to load the mission and the timeout has been exceeded - check if mission was loaded
+                if self.wp_module and (not self.wp_module.loading_waypoints):
+                    # We have a handle on the wp module and we are DONE loading waypints
+                    self.system_state = STATE_WAIT_EXECUTE
+                    print "Waiting to execute - takeoff is " + str(TIME_TO_TAKEOFF_SEC) + " from now!"
+                    self.takeoff_time = now + TIME_TO_TAKEOFF_SEC
+                else:
+                    # We encountered some error in loading waypoints in the given timeframe
+                    print "Waypoints not loaded!"
+                    self.system_state = STATE_WAITING
+        elif self.system_state == STATE_WAIT_EXECUTE:
+            if self.takeoff_time - now < 0:
+                # Takeoff time has passed - execute takeoff
+                print "Takeoff!"
+                self.system_state = STATE_WAITING
+
+
+
 
 
 def init(mpstate):
