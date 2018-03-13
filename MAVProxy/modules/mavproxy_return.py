@@ -47,10 +47,12 @@ STATE_EXECUTE = 206
 
 EXECUTE_STATE_TRY_QHOVER = 300
 EXECUTE_STATE_QHOVER_TRIED = 301
-EXECUTE_STATE_TRY_ARM = 302
-EXECUTE_STATE_ARM_TRIED = 303
-EXECUTE_STATE_TRY_AUTO = 304
-EXECUTE_STATE_AUTO_TRIED = 305
+EXECUTE_STATE_TRY_MISSION_RESET = 302
+EXECUTE_STATE_MISSION_RESET_TRIED = 303
+EXECUTE_STATE_TRY_ARM = 304
+EXECUTE_STATE_ARM_TRIED = 305
+EXECUTE_STATE_TRY_AUTO = 306
+EXECUTE_STATE_AUTO_TRIED = 307
 
 
 ## CHANGE THIS AFTER TESTING
@@ -153,7 +155,7 @@ class ReturnModule(mp_module.MPModule):
             else:
                 self.system_state = STATE_WAITING
                 print "Button was not held long enough!"
-        elif (self.system_state == STATE_TRY_LOAD_MISSION or self.system_state == STATE_WAIT_EXECUTE) and state == BUTTON_PRESSED:
+        elif (self.system_state == STATE_TRY_LOAD_MISSION or self.system_state == STATE_WAIT_EXECUTE or self.system_state == STATE_EXECUTE) and state == BUTTON_PRESSED:
             print "Cancelling return mission load / execute"
             self.system_state = STATE_WAITING
 
@@ -327,10 +329,20 @@ class ReturnModule(mp_module.MPModule):
                 modenum = self.master.mode_mapping()["QHOVER"]
                 self.master.set_mode(modenum)
                 print "Tried to set QHOVER"
+                # Try to set mission target to waypoint 0
                 self.execute_state = EXECUTE_STATE_QHOVER_TRIED
             elif self.execute_state == EXECUTE_STATE_QHOVER_TRIED:
                 if self.mpstate.status.flightmode == "QHOVER":
-                    print "Mode is QHOVER - going to try arming"
+                    print "Mode is QHOVER - going to try resetting mission"
+                    self.execute_state = EXECUTE_STATE_TRY_MISSION_RESET
+            elif self.execute_state == EXECUTE_STATE_TRY_MISSION_RESET:
+                self.master.waypoint_set_current_send(0)
+                print "Tried to set waypoint target to 0"
+                self.execute_state = EXECUTE_STATE_MISSION_RESET_TRIED
+            elif self.execute_state == EXECUTE_STATE_MISSION_RESET_TRIED:
+                if self.current_detected_waypoint == 1:
+                    # We have reset the waypoint to 1, can start arming and takeing off
+                    print "Waypoint reset detected - going to arm and takeoff"
                     self.execute_state = EXECUTE_STATE_TRY_ARM
             elif self.execute_state == EXECUTE_STATE_TRY_ARM:
                 print "Trying to arm"
@@ -350,6 +362,10 @@ class ReturnModule(mp_module.MPModule):
 
 
 
+    def mavlink_packet(self, msg):
+        msgType = msg.get_type()
+        if msgType == 'MISSION_CURRENT':
+            self.current_detected_waypoint = msg.seq
 
 
 
@@ -358,3 +374,4 @@ class ReturnModule(mp_module.MPModule):
 def init(mpstate):
     '''initialise module'''
     return ReturnModule(mpstate)
+
