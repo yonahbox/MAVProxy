@@ -104,6 +104,9 @@ class HologramModule(mp_module.MPModule):
         self.enable_telem = False
         self.telem_frequency = 10
 
+        # Initialize our send data thread status tracker to False (not running)
+        self.send_data_message_thread_running = False
+
     def usage(self):
         '''show help on command line options'''
         return "Usage: hologram <status|start DEVICEID APIKEY|sendsms BODY|enablesms|disablesms|enablereceive|disablereceive|enabletelem FREQUENCY_SECONDS|disabletelem>"
@@ -231,6 +234,9 @@ class HologramModule(mp_module.MPModule):
         return self.send_sms(self.mavlink_packet_to_base64(packet))
 
     def send_data_message(self, msg):
+        # For threading purposes: set a variable that this thread is currently running
+        self.send_data_message_thread_running = True
+
         if os.name == 'nt':
             print "Hologram data sending not supported on Windows"
             return
@@ -239,7 +245,10 @@ class HologramModule(mp_module.MPModule):
             recv = self.hologram.sendMessage(msg, timeout=10)
             print("Received hologram message response: " + str(recv))
         except Exception as e:
-            print "Exception received: " + str(e)
+            print "Exception received when trying to send message through Hologram: " + str(e)
+
+       # For threading purposes: indicate that this thread is completed
+        self.send_data_message_thread_running = False
 
     def idle_task(self):
         '''called rapidly by mavproxy'''
@@ -287,7 +296,12 @@ class HologramModule(mp_module.MPModule):
             
                 print "Message length: " + str(len(json.dumps(compact_telemetry)))
                 if compact_telemetry:
-                    self.send_data_message(str(compact_telemetry))
+                    if not self.send_data_message_thread_running:
+                        # The single thread that we want to be sending this telemetry message is not running
+                        # We can spawn one safely
+                        self.send_data_message(str(compact_telemetry))
+                    else:
+                        print("Cannot send message - old data message thread is still sending message")
                 else:
                     print "No telemetry data to send - skipping.."
                 print "-----------"
