@@ -322,8 +322,8 @@ class HologramModule(mp_module.MPModule):
             else:
                 print "Received command but sms command forwarding is disabled: use hologram enablesms to start"
         # Ignore blacklisted packets but print those we might have missed
-        elif m.get_type() not in ['HEARTBEAT', 'REQUEST_DATA_STREAM']:
-            print "Received command: " + str(m) + " - but these are not whitelisted to forward"
+        #elif m.get_type() not in ['HEARTBEAT', 'REQUEST_DATA_STREAM']:
+            #print "Received command: " + str(m) + " - but these are not whitelisted to forward"
 
 
 
